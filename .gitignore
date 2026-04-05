@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+
+# Логи и временные файлы
+*.log
+*.tmp
+.DS_Store
+
+# Секреты и токены (не коммитить)
+.token
+.media_user_token
+.developer_token
+.apple_music_token
+
+# Локальные данные миграции и выгрузки (генерируются скриптами)
+data/*
+!data/.gitkeep
+
+# Скачанные треки
+downloads/
