@@ -21,16 +21,98 @@ pip install -r requirements.txt
 
 ## Переменные окружения и секреты
 
-| Что | Где задать |
-|-----|------------|
-| OAuth Яндекс Музыки | `export YANDEX_MUSIC_TOKEN="..."` |
-| Developer + Media User Token для API Apple | `python extract_tokens.py --save` → файлы `.developer_token` и `.apple_music_token` (уже в `.gitignore`) |
+
+| Что                                        | Где задать                                                                          |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| OAuth Яндекс Музыки                        | `export YANDEX_MUSIC_TOKEN="..."`                                                   |
+| Developer + Media User Token для API Apple | см. раздел ниже про «точечные» файлы и раздел «Как получить токены для Apple Music» |
+
+
+### Токены в скрытых файлах корня репозитория (`.*`)
+
+Все перечисленные файлы лежат **в корне проекта** (рядом со скриптами), **в git не попадают** (см. `.gitignore`). Это секреты — не публикуйте их и не шарьте копию каталога с ними.
+
+
+| Файл                 | Назначение                                                                                                                                                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.developer_token`   | Developer Token (JWT) для Apple Music API. Создаётся командой `python extract_tokens.py --save` (или вручную одной строкой в файл). Читает `add_to_apple_music_api.py`.                                                                          |
+| `.media_user_token`  | Media User Token из cookie `music.apple.com`. Сохраняет `**extract_tokens.py --save`** после успешного извлечения (`--from-chrome`, `--from-safari`, `--interactive` и т.д.).                                                                    |
+| `.apple_music_token` | Тот же смысл, что и media-user-token для библиотеки: `**add_to_apple_music_api.py` читает именно этот файл**. Если у вас есть только `.media_user_token`, скопируйте его содержимое в `.apple_music_token` или заведите один файл под оба имени. |
+| `.token`             | Зарезервировано под локальные секреты (например, если вы решите хранить OAuth Яндекса в файле вместо переменной окружения). Скрипты по умолчанию ожидают `YANDEX_MUSIC_TOKEN`; файл не обязателен.                                               |
+
 
 Получение OAuth-токена Яндекса (в документации в скриптах и в `config.py` указан client_id приложения):
 
-https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d
+[https://oauth.yandex.ru/authorize?response_type=token&client_id=23c43123341321431234123](https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d)
 
-Подробности по токенам Apple Music — в шапке `extract_tokens.py` (Chrome/Safari cookies, Playwright и т.д.).
+## Как получить токены для Apple Music
+
+Нужны **два** значения: **Developer Token** (JWT) и **Media User Token** (cookie `media-user-token` для вашего аккаунта). Оба используются `add_to_apple_music_api.py`. Скрипт `extract_tokens.py` умеет доставать первый автоматически, второй — из браузера или вручную.
+
+**Условия:** активная подписка **Apple Music**, вход на [music.apple.com](https://music.apple.com/) в том браузере, откуда будете брать cookie (для автоматических способов).
+
+### 1. Developer Token
+
+Это сервисный JWT, который Apple отдаёт внутри страницы [beta.music.apple.com](https://beta.music.apple.com). Отдельный Apple Developer аккаунт для этого **не нужен**.
+
+```bash
+python extract_tokens.py
+```
+
+Скрипт скачает страницу, найдёт JWT в JS-бандле и выведет срок действия. Токен **временный** (порядка нескольких месяцев); когда истечёт — запустите команду снова.
+
+Сохранить в файл:
+
+```bash
+python extract_tokens.py --save
+```
+
+Появится `**.developer_token**` в корне проекта (уже в `.gitignore`).
+
+### 2. Media User Token (привязка к вашей библиотеке)
+
+Это длинная строка из cookie сайта Apple Music. Без неё API не увидит вашу медиатеку.
+
+**Вручную (надёжно):**
+
+1. Откройте [music.apple.com](https://music.apple.com/) в Chrome (или другом браузере с DevTools).
+2. Войдите в аккаунт с подпиской.
+3. DevTools (F12) → вкладка **Application** (или «Хранилище») → **Cookies** → `https://music.apple.com`.
+4. Найдите cookie `**media-user-token`**, скопируйте **значение** целиком.
+5. Вставьте в файл `**.apple_music_token`** в корне репозитория одной строкой (файл создайте вручную, в git не коммитьте).
+
+**Через скрипт из Chrome** (Chrome должен быть залогинен на music.apple.com):
+
+```bash
+python extract_tokens.py --from-chrome --save
+```
+
+User-token сохранится в `**.media_user_token**`. Для `add_to_apple_music_api.py` скопируйте содержимое в `**.apple_music_token**` или продублируйте файл.
+
+**Через Safari** (нужен пакет `binarycookies`):
+
+```bash
+pip install binarycookies
+python extract_tokens.py --from-safari --save
+```
+
+**Интерактивно** (откроется Chromium, можно войти в Apple ID):
+
+```bash
+pip install playwright
+playwright install chromium
+python extract_tokens.py --interactive --save
+```
+
+### 3. Проверка и сохранение обоих сразу
+
+```bash
+python extract_tokens.py --from-chrome --save --verify
+```
+
+Вместо `--from-chrome` можно `--from-safari` или `--interactive`. Флаг `**--verify**` выполняет тестовый запрос к Apple Music API и смыслен только если в **этом же** запуске удалось получить user token (ручной ввод из буфера скрипт не подхватывает — тогда сохраните cookie в `.apple_music_token` и проверяйте запуском `add_to_apple_music_api.py --dry-run`).
+
+Итог для импорта: в корне должны быть `**.developer_token`** и `**.apple_music_token**` (если сохраняли только в `.media_user_token` — скопируйте в `.apple_music_token`).
 
 ## Пайплайн
 
@@ -88,19 +170,22 @@ python generate_shortcut.py
 
 ## Состав репозитория
 
-| Файл | Назначение |
-|------|------------|
-| `config.py` | Пути к `data/` и переменная `YANDEX_MUSIC_TOKEN` |
-| `export_yandex_favorites.py` | Экспорт лайков |
-| `match_apple_music.py` | Матчинг по iTunes Search |
-| `add_to_apple_music.py` | Импорт через Music.app |
-| `add_to_apple_music_api.py` | Импорт через API |
-| `extract_tokens.py` | Токены для API Apple |
-| `download_tracks.py` | Загрузка MP3 |
-| `generate_shortcut.py` | Генерация шорткатов |
+
+| Файл                         | Назначение                                       |
+| ---------------------------- | ------------------------------------------------ |
+| `config.py`                  | Пути к `data/` и переменная `YANDEX_MUSIC_TOKEN` |
+| `export_yandex_favorites.py` | Экспорт лайков                                   |
+| `match_apple_music.py`       | Матчинг по iTunes Search                         |
+| `add_to_apple_music.py`      | Импорт через Music.app                           |
+| `add_to_apple_music_api.py`  | Импорт через API                                 |
+| `extract_tokens.py`          | Токены для API Apple                             |
+| `download_tracks.py`         | Загрузка MP3                                     |
+| `generate_shortcut.py`       | Генерация шорткатов                              |
+
 
 ## Ограничения и замечания
 
 - Качество матчинга зависит от метаданных и регионального каталога iTunes/Apple Music.
 - Автоматизация через Music.app опирается на тайминги (`sleep`); при медленной машине или сети может понадобиться подстроить задержки в коде.
 - Скачивание треков регулируется условиями использования Яндекс Музыки; используйте ответственно.
+
