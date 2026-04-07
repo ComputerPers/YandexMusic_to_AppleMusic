@@ -43,6 +43,7 @@ pip install -r requirements.txt
 
 Получение OAuth-токена Яндекса (в документации в скриптах и в `config.py` указан client_id приложения):
 
+[https://oauth.yandex.ru/]
 [https://oauth.yandex.ru/authorize?response_type=token&client_id=23c43123341321431234123](https://oauth.yandex.ru/authorize?response_type=token&client_id=23c1234123412341234)
 
 ## Как получить токены для Apple Music
